@@ -34,28 +34,26 @@ class tuned (
     # Only if we are 'present'
     if $ensure != 'absent' {
 
-      # Two services, except on Fedora
-      if $::operatingsystem != 'Fedora' {
-        $tuned_services = [ 'tuned', 'ktune' ]
-      } else {
+      # One service on Fedora and EL7
+      if ( $::operatingsystem == 'Fedora' or ( $::operatingsystemmajrelease >= '7' ) ) {
         $tuned_services = [ 'tuned' ]
-      }
-      service { $tuned_services:
-        enable    => true,
-        ensure    => running,
-        hasstatus => true,
-        require   => Package['tuned'],
+      } else {
+        $tuned_services = [ 'tuned', 'ktune' ]
       }
 
       # Enable the chosen profile
       exec { "tuned-adm profile ${profile}":
         unless  => "grep -q -e '^${profile}\$' /etc/tune-profiles/active-profile",
         require => Package['tuned'],
-        before  => [ Service['tuned'], Service['ktune'] ],
         path    => [ '/sbin', '/bin', '/usr/sbin' ],
         # No need to notify services, tuned-adm restarts them alone
+      } ->
+      service { $tuned_services:
+        enable    => true,
+        ensure    => running,
+        hasstatus => true,
+        require   => Package['tuned'],
       }
-
       # Install the profile's file tree if source is given
       if $source {
         file { "/etc/tune-profiles/${profile}":
